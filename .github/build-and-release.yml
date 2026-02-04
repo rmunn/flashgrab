@@ -1,0 +1,45 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.1
+
+      - name: Create zip file
+        run: ./BuildZip.sh
+
+      - name: Put version number in filename
+        id: rename_zip
+        run: |
+          VERSION_TAG="${{ github.ref_name }}"
+          NAME_WITH_VERSION="FlashGrab-${VERSION_TAG}.zip"
+          mv FlashGrab.zip "$NAME_WITH_VERSION"
+          echo "zip_file=$NAME_WITH_VERSION" | tee -a $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        id: create_release
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          files: ${{ steps.rename_zip.outputs.zip_file }}
+          # Have GitHub autogenerate some handy release notes for us
+          generate_release_notes: true
+          # But set release to draft so we can hand-edit the release notes, if necessary
+          # Requires manual step later to mark release as non-draft, which makes it read-only
+          draft: true
+          # Ensure we don't create a blank release if the zip file was not created somehow
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log successful release
+        run: |
+          echo "Release for ${{ github.ref_name }} created at ${{ steps.create_release.outputs.url }}"
